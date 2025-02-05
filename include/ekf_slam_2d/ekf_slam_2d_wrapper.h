@@ -1,13 +1,14 @@
 /*
- * File: mrpt_ekf_slam_2d_wrapper.h
+ * File: ekf_slam_2d_wrapper.h
  * Author: Vladislav Tananaev
- *
+ * Modified by: Zim Gong
  */
 
 #pragma once
 #include <iostream>	 // std::cout
 #include <fstream>	// std::ifstream
 #include <string>
+#include <cmath>
 #include "ekf_slam_2d/ekf_slam_2d.h"
 
 // add ros libraries
@@ -25,6 +26,7 @@
 #include <geometry_msgs/PoseWithCovarianceStamped.h>
 #include <visualization_msgs/MarkerArray.h>
 #include <visualization_msgs/Marker.h>
+#include <sensor_msgs/PointCloud2.h>
 
 // mrpt bridge libs
 #include <mrpt/ros1bridge/pose.h>
@@ -48,6 +50,8 @@
 #include <mrpt/obs/CActionRobotMovement2D.h>
 #include <mrpt/obs/CActionRobotMovement3D.h>
 #include <mrpt/obs/CRawlog.h>
+#include <mrpt/maps/CSimplePointsMap.h>
+#include <mrpt/ros1bridge/point_cloud2.h>
 
 /**
  * @brief The EKFslamWrapper class provides the ROS wrapper for EKF SLAM 2d from
@@ -136,6 +140,8 @@ class EKFslamWrapper : EKFslam
 	 * @param _msg  the landmark message
 	 */
 	void landmarkCallback(const mrpt_msgs::ObservationRangeBearing& _msg);
+	void landmarkMRPCCallback(const sensor_msgs::PointCloud2& _msg);
+	void landmarkMRCallback(const visualization_msgs::MarkerArray& _msg);
 	/**
 	 * @brief  update the pose of the sensor with respect to the robot
 	 *

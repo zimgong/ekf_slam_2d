@@ -1,7 +1,7 @@
 /*
  * File: ekf_slam_2d_wrapper.cpp
  * Author: Vladislav Tananaev
- *
+ * Modified by: Zim Gong
  */
 
 #include "ekf_slam_2d/ekf_slam_2d_wrapper.h"
@@ -87,6 +87,16 @@ void EKFslamWrapper::init()
 		{
 			sensorSub_[i] = n_.subscribe(
 				lstSources[i], 1, &EKFslamWrapper::landmarkCallback, this);
+		}
+		else if (lstSources[i].find("/pcl_magic/clustered_cloud") != std::string::npos)
+		{
+			sensorSub_[i] = n_.subscribe(
+				lstSources[i], 1, &EKFslamWrapper::landmarkMRPCCallback, this);
+		}
+		else if (lstSources[i].find("/mapping/cone_markers_w_label") != std::string::npos)
+		{
+			sensorSub_[i] = n_.subscribe(
+				lstSources[i], 1, &EKFslamWrapper::landmarkMRCallback, this);
 		}
 		else
 		{
@@ -532,5 +542,171 @@ void EKFslamWrapper::publishTF()
 		tf2::convert(latest_tf.inverse(), tmp_tf_stamped.transform);
 
 		tf_broadcaster_.sendTransform(tmp_tf_stamped);
+	}
+}
+
+void EKFslamWrapper::landmarkMRPCCallback(
+	const sensor_msgs::PointCloud2& _msg)
+{
+	using namespace mrpt::maps;
+	using namespace mrpt::obs;
+
+	CObservationBearingRange::Ptr landmark = CObservationBearingRange::Create();
+
+	if (landmark_poses_.find(_msg.header.frame_id) == landmark_poses_.end())
+	{
+		updateSensorPose(_msg.header.frame_id);
+	}
+	else
+	{
+		mrpt::poses::CPose3D pose = landmark_poses_[_msg.header.frame_id];
+		mrpt::maps::CSimplePointsMap pc_map;
+		mrpt::ros1bridge::fromROS(_msg, pc_map);
+
+		landmark->timestamp = mrpt::ros1bridge::fromROS(_msg.header.stamp);
+
+		mrpt::poses::CPose3D cpose_obj;
+
+		landmark->sensor_std_yaw = 0.1;
+		landmark->sensor_std_pitch = 0;
+		landmark->sensor_std_range = 0.01;
+
+		if (pose.empty())
+		{
+			landmark->setSensorPose(mrpt::poses::CPose3D(0, 0, 0));
+			ROS_INFO("No pose found for landmark");
+		}
+		else
+		{
+			landmark->setSensorPose(pose);
+		}
+
+		ASSERT_(pc_map.size() >= 1);
+		const size_t N = pc_map.size();
+		landmark->sensedData.resize(N);
+		ROS_INFO("Found %zu points", N);
+
+		for (size_t i = 0; i < N; i++)
+		{
+			float x, y, z;
+			pc_map.getPoint(i, x, y, z);
+
+			const double range = std::hypot(x, y);
+			const double yaw = std::atan2(y, x);
+			const double pitch = 0.0;
+
+			landmark->sensedData[i].range = range;
+			landmark->sensedData[i].yaw = yaw;
+			landmark->sensedData[i].pitch = pitch;
+			landmark->sensedData[i].landmarkID = -1;
+			
+			ROS_INFO("Point %zu: x=%f, y=%f, z=%f", i, x, y, z);
+			ROS_INFO("Point %zu: range=%f, yaw=%f, pitch=%f", i, range, yaw, pitch);
+			ROS_INFO("landmark id: %d", landmark->sensedData[i].landmarkID);
+		}
+
+		sf = CSensoryFrame::Create();
+		CObservationOdometry::Ptr odometry;
+		odometryForCallback(odometry, _msg.header);
+
+		CObservation::Ptr obs = CObservation::Ptr(landmark);
+		sf->insert(obs);
+		observation(sf, odometry);
+		timeLastUpdate_ = sf->getObservationByIndex(0)->timestamp;
+
+		tictac.Tic();
+		mapping.processActionObservation(action, sf);
+		t_exec = tictac.Tac();
+		ROS_INFO("Map building executed in %.03fms", 1000.0f * t_exec);
+		ros::Duration(rawlog_play_delay).sleep();
+		mapping.getCurrentState(
+			robotPose_, LMs_, LM_IDs_, fullState_, fullCov_);
+		viz_state();
+		viz_dataAssociation();
+		run3Dwindow();
+		publishTF();
+	}
+}
+
+void EKFslamWrapper::landmarkMRCallback(
+	const visualization_msgs::MarkerArray& _msg)
+{
+	using namespace mrpt::maps;
+	using namespace mrpt::obs;
+
+	CObservationBearingRange::Ptr landmark = CObservationBearingRange::Create();
+
+	if (landmark_poses_.find(_msg.markers[0].header.frame_id) == landmark_poses_.end())
+	{
+		updateSensorPose(_msg.markers[0].header.frame_id);
+	}
+	else
+	{
+		mrpt::poses::CPose3D pose = landmark_poses_[_msg.markers[0].header.frame_id];
+
+		landmark->timestamp = mrpt::ros1bridge::fromROS(_msg.markers[0].header.stamp);
+
+		mrpt::poses::CPose3D cpose_obj;
+
+		landmark->sensor_std_yaw = 0.1;
+		landmark->sensor_std_pitch = 0;
+		landmark->sensor_std_range = 0.01;
+
+		if (pose.empty())
+		{
+			landmark->setSensorPose(mrpt::poses::CPose3D(0, 0, 0));
+			ROS_INFO("No pose found for landmark");
+		}
+		else
+		{
+			landmark->setSensorPose(pose);
+		}
+
+		ASSERT_(_msg.markers.size() >= 1);
+		const size_t N = _msg.markers.size();
+		landmark->sensedData.resize(N);
+		// ROS_INFO("Found %zu points", N);
+
+		for (size_t i = 0; i < N; i++)
+		{
+			float x, y, z;
+			x = _msg.markers[i].pose.position.x;
+			y = _msg.markers[i].pose.position.y;
+			z = _msg.markers[i].pose.position.z;
+
+			const double range = std::hypot(x, y);
+			const double yaw = std::atan2(y, x);
+			const double pitch = 0.0;
+
+			landmark->sensedData[i].range = range;
+			landmark->sensedData[i].yaw = yaw;
+			landmark->sensedData[i].pitch = pitch;
+			landmark->sensedData[i].landmarkID = _msg.markers[i].id;
+			
+			// ROS_INFO("Point %zu: x=%f, y=%f, z=%f", i, x, y, z);
+			// ROS_INFO("Point %zu: range=%f, yaw=%f, pitch=%f", i, range, yaw, pitch);
+			// ROS_INFO("landmark id: %d", landmark->sensedData[i].landmarkID);
+		}
+
+		sf = CSensoryFrame::Create();
+		CObservationOdometry::Ptr odometry;
+		odometryForCallback(odometry, _msg.markers[0].header);
+
+		CObservation::Ptr obs = CObservation::Ptr(landmark);
+		sf->insert(obs);
+		observation(sf, odometry);
+		timeLastUpdate_ = sf->getObservationByIndex(0)->timestamp;
+
+		tictac.Tic();
+		mapping.processActionObservation(action, sf);
+		t_exec = tictac.Tac();
+		ROS_INFO("Map building executed in %.03fms", 1000.0f * t_exec);
+		ros::Duration(rawlog_play_delay).sleep();
+		mapping.getCurrentState(
+			robotPose_, LMs_, LM_IDs_, fullState_, fullCov_);
+		viz_state();
+		viz_dataAssociation();
+		run3Dwindow();
+		publishTF();
 	}
 }

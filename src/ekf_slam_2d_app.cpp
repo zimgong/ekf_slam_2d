@@ -1,5 +1,5 @@
 
-#include "ekf_slam_ 2d/ekf_slam_2d_wrapper.h"
+#include "ekf_slam_2d/ekf_slam_2d_wrapper.h"
 
 int main(int argc, char **argv)
 {

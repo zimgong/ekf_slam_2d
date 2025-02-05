@@ -1,7 +1,7 @@
 # Catkin User Guide: http://www.ros.org/doc/groovy/api/catkin/html/user_guide/user_guide.html
 # Catkin CMake Standard: http://www.ros.org/doc/groovy/api/catkin/html/user_guide/standards.html
 cmake_minimum_required(VERSION 3.1)
-project(mrpt_ekf_slam_2d)
+project(ekf_slam_2d)
 
 #find catkin packages
 find_package(catkin REQUIRED COMPONENTS
@@ -71,13 +71,13 @@ include_directories(
   include
 )
 
-add_executable(mrpt_ekf_slam_2d
-    src/mrpt_ekf_slam_2d.cpp
-    src/mrpt_ekf_slam_2d_wrapper.cpp
-    src/mrpt_ekf_slam_2d_app.cpp
+add_executable(ekf_slam_2d
+    src/ekf_slam_2d.cpp
+    src/ekf_slam_2d_wrapper.cpp
+    src/ekf_slam_2d_app.cpp
 )
 
-TARGET_LINK_LIBRARIES(mrpt_ekf_slam_2d
+TARGET_LINK_LIBRARIES(ekf_slam_2d
   mrpt::slam
   mrpt::gui
   mrpt::ros1bridge
@@ -89,7 +89,7 @@ TARGET_LINK_LIBRARIES(mrpt_ekf_slam_2d
 #############
 
 # Mark executables and/or libraries for installation
-install(TARGETS mrpt_ekf_slam_2d
+install(TARGETS ekf_slam_2d
   ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
   LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
   RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}

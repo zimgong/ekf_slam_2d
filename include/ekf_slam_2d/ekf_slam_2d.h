@@ -1,7 +1,7 @@
 /*
- *  File:mrpt_ekf_slam_3d.h
- *  Author: Vladislav Tananaev
- *
+ * File: ekf_slam_2d.h
+ * Author: Vladislav Tananaev
+ * Modified by: Zim Gong
  */
 
 #pragma once
